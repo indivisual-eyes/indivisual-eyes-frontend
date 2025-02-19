@@ -26,7 +26,7 @@ class CaptureButton extends StatelessWidget {
 
       final image = await controller.takePicture();
       if (!context.mounted) return;
-
+      developer.debugPrint("Image captured successfully");
       final rotatedFile = await fixImageRotation(File(image.path));
 
       var req = http.MultipartRequest(
@@ -34,13 +34,13 @@ class CaptureButton extends StatelessWidget {
         Uri.parse("https://mcs.drury.edu/mirror/image"),
       );
       req.fields["cvd_type"] = cvdType;
-      developer.debugPrint("CVD Type: $cvdType");
       req.files.add(
         await http.MultipartFile.fromPath("image", rotatedFile.path),
       );
       
       final res = await req.send();
       if (res.statusCode == 200) {
+        developer.debugPrint("Response received successfully");
         final dir = await getTemporaryDirectory();
         var filename = '${dir.path}/response_image${Random().nextInt(100)}.png';
         final file = File(filename);

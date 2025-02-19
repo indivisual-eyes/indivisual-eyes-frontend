@@ -44,8 +44,7 @@ class TakePictureScreen extends StatefulWidget {
 class TakePictureScreenState extends State<TakePictureScreen> {
   late CameraController _controller;
   late Future<void> _initializeControllerFuture;
-  String cvdType = 'Tritanopia'; // Default to Tritanopia
-
+  String cvdType = 'Protanopia'; 
   @override
   void initState() {
     super.initState();
@@ -55,6 +54,7 @@ class TakePictureScreenState extends State<TakePictureScreen> {
       enableAudio: false, // May help with rotation issues
     );
     _initializeControllerFuture = _controller.initialize();
+            
   }
 
   @override
@@ -93,32 +93,6 @@ class TakePictureScreenState extends State<TakePictureScreen> {
             FilterMenu(onTypeChanged: updateType),
           ]
         ),
-      ),
-    );
-  }
-}
-
-// Screen to show the image returned from the backend
-class DisplayPictureScreen extends StatelessWidget {
-  final String imagePath;
-
-  const DisplayPictureScreen({super.key, required this.imagePath});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Display the Picture')),
-      body: FutureBuilder<File>(
-        future: fixImageRotation(File(imagePath)), // Ensure rotation before displaying
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          } else {
-            return Image.file(snapshot.data!);
-          }
-        },
       ),
     );
   }
