@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:developer' as developer;
-import 'dart:math';
+// import 'dart:developer' as developer;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
+
+// Custom imports
+import 'widgets/CaptureButton.dart';
+import 'widgets/FilterMenu.dart';
 
 // Ignore website certificates
 class MyHttpOverrides extends HttpOverrides {
@@ -32,21 +33,27 @@ Future<void> main() async {
 
 // Screen that shows camera preview and takes a picture
 class TakePictureScreen extends StatefulWidget {
-  const TakePictureScreen({super.key, required this.camera});
   final CameraDescription camera;
-
+  const TakePictureScreen({super.key, required this.camera});
   @override
   TakePictureScreenState createState() => TakePictureScreenState();
 }
 
+
+
 class TakePictureScreenState extends State<TakePictureScreen> {
   late CameraController _controller;
   late Future<void> _initializeControllerFuture;
+  String cvdType = 'Tritanopia'; // Default to Tritanopia
 
   @override
   void initState() {
     super.initState();
-    _controller = CameraController(widget.camera, ResolutionPreset.medium);
+    _controller = CameraController(
+      widget.camera,
+      ResolutionPreset.medium,
+      enableAudio: false, // May help with rotation issues
+    );
     _initializeControllerFuture = _controller.initialize();
   }
 
@@ -56,11 +63,18 @@ class TakePictureScreenState extends State<TakePictureScreen> {
     super.dispose();
   }
 
+  void updateType(String newType) {
+    setState(() {
+      cvdType = newType;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Take a picture')),
+      appBar: AppBar(title: const Text('Take a Picture')),
       body: FutureBuilder<void>(
+        
         future: _initializeControllerFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done) {
@@ -70,41 +84,15 @@ class TakePictureScreenState extends State<TakePictureScreen> {
           }
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          var random = Random();
-
-          try {
-            await _initializeControllerFuture;
-            // Take a picture
-            final image = await _controller.takePicture();
-            if (!context.mounted) return;
-
-            // Send the image to the backend
-            var req = http.MultipartRequest("POST", Uri.parse("https://mcs.drury.edu/mirror/image"));
-            req.fields["cvd_type"] = "Protanopia";
-            req.files.add(await http.MultipartFile.fromPath("image", image.path));
-            final res = await req.send();
-
-            if (res.statusCode == 200) {
-              // Save the image returned from the backend to the device
-              final dir = await getTemporaryDirectory();
-              var filename = '${dir.path}/response_image${random.nextInt(100)}.png';
-              final file = File(filename);
-              await file.writeAsBytes(await res.stream.toBytes());
-
-              // Show the image returned from the backend
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => DisplayPictureScreen(imagePath: file.path),
-                ),
-              );
-            }
-          } catch (e) {
-            developer.log(e.toString());
-          }
-        },
-        child: const Icon(Icons.camera_alt),
+    
+      bottomNavigationBar: BottomAppBar(
+        child:Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround, // adjust spacing
+          children: [
+            CaptureButton(controller: _controller, initializeControllerFuture: _initializeControllerFuture, cvdType: cvdType),
+            FilterMenu(onTypeChanged: updateType),
+          ]
+        ),
       ),
     );
   }
@@ -113,13 +101,26 @@ class TakePictureScreenState extends State<TakePictureScreen> {
 // Screen to show the image returned from the backend
 class DisplayPictureScreen extends StatelessWidget {
   final String imagePath;
+
   const DisplayPictureScreen({super.key, required this.imagePath});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Display the Picture')),
-      body: Image.file(File(imagePath)),
+      body: FutureBuilder<File>(
+        future: fixImageRotation(File(imagePath)), // Ensure rotation before displaying
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          } else {
+            return Image.file(snapshot.data!);
+          }
+        },
+      ),
     );
   }
 }
+
